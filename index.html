@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>タスク管理 (CSSなし)</title>
+</head>
+<body>
+
+    <h1>タスク管理アプリ</h1>
+
+    <form id="add-task-form">
+        <input type="text" id="task-title" placeholder="新しいタスクを入力..." required>
+        <button type="submit">追加</button>
+    </form>
+
+    <hr>
+
+    <h2>タスク一覧</h2>
+    <ul id="task-list">
+        </ul>
+
+<script>
+    // JavaScriptのロジックはCSSありバージョンと全く同じです
+    const API_URL = 'http://127.0.0.1:8000';
+    const taskList = document.getElementById('task-list');
+    const addTaskForm = document.getElementById('add-task-form');
+    const taskTitleInput = document.getElementById('task-title');
+
+    // APIから全タスクを取得して画面に表示する関数
+    async function fetchTasks() {
+        const response = await fetch(`${API_URL}/tasks/`);
+        const tasks = await response.json();
+        
+        taskList.innerHTML = ''; // リストを一旦空にする
+        
+        tasks.forEach(task => {
+            const li = document.createElement('li');
+            
+            // チェックボックスで完了状態を表現
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = task.is_completed;
+            checkbox.addEventListener('change', () => toggleComplete(task.id, !task.is_completed));
+            
+            // タスクのタイトル (完了なら打ち消し線)
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = ` ${task.title}`; // スペースを前に入れる
+            if (task.is_completed) {
+                titleSpan.style.textDecoration = 'line-through';
+            }
+            
+            // 削除ボタン
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '削除';
+            deleteBtn.style.marginLeft = '20px'; // 少しだけマージン
+            deleteBtn.addEventListener('click', () => deleteTask(task.id));
+            
+            li.appendChild(checkbox);
+            li.appendChild(titleSpan);
+            li.appendChild(deleteBtn);
+            taskList.appendChild(li);
+        });
+    }
+
+    // 新しいタスクを追加する関数
+    addTaskForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const title = taskTitleInput.value.trim();
+        if (!title) return;
+
+        await fetch(`${API_URL}/tasks/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        
+        taskTitleInput.value = '';
+        fetchTasks();
+    });
+
+    // タスクを削除する関数
+    async function deleteTask(taskId) {
+        await fetch(`${API_URL}/tasks/${taskId}`, { method: 'DELETE' });
+        fetchTasks();
+    }
+    
+    // タスクの完了/未完了を切り替える関数
+    async function toggleComplete(taskId, isCompleted) {
+        await fetch(`${API_URL}/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_completed: isCompleted })
+        });
+        fetchTasks();
+    }
+
+    // ページが読み込まれたら最初にタスクを取得
+    fetchTasks();
+</script>
+
+</body>
+</html>
