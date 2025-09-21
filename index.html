@@ -2,101 +2,123 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>タスク管理 (CSSなし)</title>
+    <title>タスク管理 (React版)</title>
+    <style>
+        /* CSSは先ほどのシンプルなものを流用します */
+        body { font-family: sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; padding-top: 50px; }
+        .container { max-width: 600px; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        form { display: flex; margin-bottom: 20px; }
+        input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 15px; border: none; background-color: #5c67f2; color: white; border-radius: 4px; cursor: pointer; margin-left: 10px; }
+        ul { list-style-type: none; padding: 0; }
+        li { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }
+        li span { flex-grow: 1; cursor: pointer; }
+        li.completed span { text-decoration: line-through; color: #aaa; }
+        .delete-btn { background-color: #e57373; }
+    </style>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
+    <div id="root"></div>
 
-    <h1>タスク管理アプリ</h1>
+    <script type="text/babel">
+        // useState, useEffectをReactからインポート
+        const { useState, useEffect } = React;
 
-    <form id="add-task-form">
-        <input type="text" id="task-title" placeholder="新しいタスクを入力..." required>
-        <button type="submit">追加</button>
-    </form>
+        const API_URL = 'http://127.0.0.1:8000';
 
-    <hr>
+        // メインのアプリケーションコンポーネント
+        function App() {
+            // Reactの「State」を使ってデータを管理します
+            // tasks: タスクのリスト, inputValue: 入力欄の文字列
+            const [tasks, setTasks] = useState([]);
+            const [inputValue, setInputValue] = useState('');
+            const [descValue, setDescValue] = useState('');
 
-    <h2>タスク一覧</h2>
-    <ul id="task-list">
-        </ul>
+            // データ取得用の関数
+            const fetchTasks = async () => {
+                const response = await fetch(`${API_URL}/tasks/`);
+                const data = await response.json();
+                setTasks(data); // Stateを更新すると、画面が自動で再描画される
+            };
 
-<script>
-    // JavaScriptのロジックはCSSありバージョンと全く同じです
-    const API_URL = 'http://127.0.0.1:8000';
-    const taskList = document.getElementById('task-list');
-    const addTaskForm = document.getElementById('add-task-form');
-    const taskTitleInput = document.getElementById('task-title');
+            // useEffectは、コンポーネントが最初に表示された時に一度だけ実行されるフック
+            // ここで最初のデータ取得を行う
+            useEffect(() => {
+                fetchTasks();
+            }, []); // 第2引数の配列が空だと、初回の一度だけ実行される
 
-    // APIから全タスクを取得して画面に表示する関数
-    async function fetchTasks() {
-        const response = await fetch(`${API_URL}/tasks/`);
-        const tasks = await response.json();
-        
-        taskList.innerHTML = ''; // リストを一旦空にする
-        
-        tasks.forEach(task => {
-            const li = document.createElement('li');
+            const handleAddTask = async (event) => {
+                event.preventDefault();
+                if (!inputValue.trim()) return;
+
+                await fetch(`${API_URL}/tasks/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: inputValue, description: descValue })
+                });
+                
+                setInputValue(''); // 入力欄をクリア
+                setDescValue('');
+                fetchTasks(); // タスクリストを再取得して画面を更新
+            };
+
+            const handleDeleteTask = async (taskId) => {
+                await fetch(`${API_URL}/tasks/${taskId}`, { method: 'DELETE' });
+                fetchTasks();
+            };
+
+            const handleToggleComplete = async (task) => {
+                await fetch(`${API_URL}/tasks/${task.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_completed: !task.is_completed })
+                });
+                fetchTasks();
+            };
             
-            // チェックボックスで完了状態を表現
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = task.is_completed;
-            checkbox.addEventListener('change', () => toggleComplete(task.id, !task.is_completed));
-            
-            // タスクのタイトル (完了なら打ち消し線)
-            const titleSpan = document.createElement('span');
-            titleSpan.textContent = ` ${task.title}`; // スペースを前に入れる
-            if (task.is_completed) {
-                titleSpan.style.textDecoration = 'line-through';
-            }
-            
-            // 削除ボタン
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = '削除';
-            deleteBtn.style.marginLeft = '20px'; // 少しだけマージン
-            deleteBtn.addEventListener('click', () => deleteTask(task.id));
-            
-            li.appendChild(checkbox);
-            li.appendChild(titleSpan);
-            li.appendChild(deleteBtn);
-            taskList.appendChild(li);
-        });
-    }
+            // ここがUIの「宣言」部分です。
+            // 「tasksというデータがあれば、それをリスト表示する」と書くだけ。
+            return (
+                <div className="container">
+                    <h1>タスク管理 (React版)</h1>
+                    <form onSubmit={handleAddTask}>
+                        <input 
+                            type="text" 
+                            value={inputValue} 
+                            onChange={(e) => setInputValue(e.target.value)}
+                            placeholder="タスクのタイトル..."
+                        />
+                        <button type="submit">追加</button>
+                    </form>
+                    <textarea 
+                        value={descValue}
+                        onChange={(e) => setDescValue(e.target.value)}
+                        placeholder="詳細..."
+                        style={{width: '96%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '20px'}}
+                    />
 
-    // 新しいタスクを追加する関数
-    addTaskForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const title = taskTitleInput.value.trim();
-        if (!title) return;
+                    <ul>
+                        {tasks.map(task => (
+                            <li key={task.id} className={task.is_completed ? 'completed' : ''}>
+                                <span onClick={() => handleToggleComplete(task)}>
+                                    {task.title}
+                                </span>
+                                <button className="delete-btn" onClick={() => handleDeleteTask(task.id)}>削除</button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            );
+        }
 
-        await fetch(`${API_URL}/tasks/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title })
-        });
-        
-        taskTitleInput.value = '';
-        fetchTasks();
-    });
+        // Reactアプリケーションを #root のdivに描画する
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
 
-    // タスクを削除する関数
-    async function deleteTask(taskId) {
-        await fetch(`${API_URL}/tasks/${taskId}`, { method: 'DELETE' });
-        fetchTasks();
-    }
-    
-    // タスクの完了/未完了を切り替える関数
-    async function toggleComplete(taskId, isCompleted) {
-        await fetch(`${API_URL}/tasks/${taskId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_completed: isCompleted })
-        });
-        fetchTasks();
-    }
-
-    // ページが読み込まれたら最初にタスクを取得
-    fetchTasks();
-</script>
-
+    </script>
 </body>
 </html>
